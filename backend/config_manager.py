@@ -17,20 +17,18 @@ class ConfigManager:
             print(f"Created default config at {self.config_path}")
     
     def _create_default_config(self):
-        """Create default configuration structure"""
+        """Create default configuration structure for ir-sim"""
         return {
             'world': {
-                'width': 800,
-                'height': 600,
-                'map': None,
-                'obstacles': []
+                'height': 6,  # world height in meters
+                'width': 8,   # world width in meters
+                'step_time': 0.1,  # 10Hz calculate each step
+                'sample_time': 0.1,  # 10Hz for render and data extraction
+                'offset': [0, 0],  # offset of the world on x and y
+                'collision_mode': 'stop'  # 'stop', 'unobstructed', 'unobstructed_obstacles'
             },
-            'robots': [],
-            'simulation': {
-                'max_steps': 1000,
-                'time_step': 0.1,
-                'goal_threshold': 10.0
-            }
+            'robot': [],
+            'obstacle': []
         }
     
     def load_config(self):
@@ -45,69 +43,63 @@ class ConfigManager:
     
     def update_config(self, map_name, robot_count, robot_position, survivor_positions):
         """
-        Update configuration with simulation parameters
+        Update configuration with simulation parameters in ir-sim format
         
         Args:
             map_name: Name of the map file
             robot_count: Number of robots
-            robot_position: Dict with x, y coordinates for robot start
-            survivor_positions: List of dicts with x, y coordinates for survivors
+            robot_position: Dict with x, y coordinates for robot start (in pixels)
+            survivor_positions: List of dicts with x, y coordinates for survivors (in pixels)
         """
         config = self.load_config()
         
+        # Convert pixel coordinates to meters (assuming 800x600 pixel map = 8x6 meters)
+        px_to_m = 100  # 100 pixels = 1 meter
+        
         # Update world settings
         config['world'] = {
-            'width': 800,
-            'height': 600,
-            'map': map_name,
-            'obstacles': []  # Survivors will be added as obstacles
+            'height': 6,  # 600 pixels = 6 meters
+            'width': 8,   # 800 pixels = 8 meters
+            'step_time': 0.1,
+            'sample_time': 0.1,
+            'offset': [0, 0],
+            'collision_mode': 'stop'
         }
         
-        # Create robot configurations
+        # Create robot configurations in ir-sim format
         robots = []
         for i in range(robot_count):
+            # Convert pixel coordinates to meters
+            start_x = float(robot_position['x']) / px_to_m
+            start_y = float(robot_position['y']) / px_to_m
+            
+            # For multiple survivors, use first as goal (ir-sim supports single goal per robot)
+            # To visit all survivors, we'd need path planning or behavior modification
+            goal_x = float(survivor_positions[0]['x']) / px_to_m if survivor_positions else start_x
+            goal_y = float(survivor_positions[0]['y']) / px_to_m if survivor_positions else start_y
+            
             robot = {
-                'id': f'robot_{i}',
-                'type': 'diff_drive',  # Differential drive robot
-                'start_position': {
-                    'x': float(robot_position['x']),
-                    'y': float(robot_position['y']),
-                    'theta': 0.0  # Initial orientation
-                },
-                'goals': [
-                    {
-                        'x': float(pos['x']), 
-                        'y': float(pos['y'])
-                    } 
-                    for pos in survivor_positions
-                ],
-                'max_speed': 50.0,  # pixels per second
-                'max_angular_speed': 2.0,  # radians per second
-                'sensor_range': 100.0,  # pixels
-                'radius': 15.0,  # robot radius in pixels
+                'kinematics': {'name': 'diff'},  # differential drive
+                'shape': {'name': 'circle', 'radius': 0.15},  # 15 pixels = 0.15 meters
+                'state': [start_x, start_y, 0],  # [x, y, theta]
+                'goal': [goal_x, goal_y, 0],  # [x, y, theta]
+                'behavior': {'name': 'dash'},  # move directly toward goal
                 'color': self._get_robot_color(i)
             }
             robots.append(robot)
         
-        config['robots'] = robots
+        config['robot'] = robots
         
-        # Add survivors as obstacles
-        config['world']['obstacles'] = [
-            {
-                'type': 'circle',
-                'position': {'x': float(pos['x']), 'y': float(pos['y'])},
-                'radius': 10.0,
-                'label': f'survivor_{i}'
+        # Add survivors as obstacles in ir-sim format
+        obstacles = []
+        for i, pos in enumerate(survivor_positions):
+            obstacle = {
+                'shape': {'name': 'circle', 'radius': 0.1},  # 10 pixels = 0.1 meters
+                'state': [float(pos['x']) / px_to_m, float(pos['y']) / px_to_m, 0]
             }
-            for i, pos in enumerate(survivor_positions)
-        ]
+            obstacles.append(obstacle)
         
-        # Update simulation parameters
-        config['simulation'] = {
-            'max_steps': 1000,
-            'time_step': 0.1,
-            'goal_threshold': 15.0  # Distance threshold to consider goal reached
-        }
+        config['obstacle'] = obstacles
         
         # Save updated config
         self.save_config(config)
@@ -132,23 +124,20 @@ class ConfigManager:
         ]
         return colors[index % len(colors)]
     
-    def add_robot_attribute(self, robot_id, attribute_name, attribute_value):
+    def add_robot_attribute(self, robot_index, attribute_name, attribute_value):
         """
         Add or update a custom attribute for a specific robot
         
         Args:
-            robot_id: ID of the robot
+            robot_index: Index of the robot
             attribute_name: Name of the attribute
             attribute_value: Value of the attribute
         """
         config = self.load_config()
         
-        for robot in config['robots']:
-            if robot['id'] == robot_id:
-                robot[attribute_name] = attribute_value
-                break
-        
-        self.save_config(config)
+        if robot_index < len(config['robot']):
+            config['robot'][robot_index][attribute_name] = attribute_value
+            self.save_config(config)
     
     def add_obstacle_attribute(self, obstacle_index, attribute_name, attribute_value):
         """
@@ -161,6 +150,6 @@ class ConfigManager:
         """
         config = self.load_config()
         
-        if obstacle_index < len(config['world']['obstacles']):
-            config['world']['obstacles'][obstacle_index][attribute_name] = attribute_value
+        if obstacle_index < len(config['obstacle']):
+            config['obstacle'][obstacle_index][attribute_name] = attribute_value
             self.save_config(config)
