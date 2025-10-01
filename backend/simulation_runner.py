@@ -85,8 +85,11 @@ class SimulationRunner:
     
     def _render_with_map(self, step):
         """Render ir-sim state with map overlay"""
-        # Get ir-sim's render output
-        fig = self.env.render()
+        # Call ir-sim's render with time parameter
+        self.env.render(0.05)
+        
+        # Get the current matplotlib figure created by ir-sim
+        fig = plt.gcf()
         
         # If we have a map image, overlay it in the background
         if self.map_image and fig:
