@@ -69,14 +69,14 @@ class ConfigManager:
         # Create robot configurations in ir-sim format
         robots = []
         for i in range(robot_count):
-            # Convert pixel coordinates to meters
+            # Convert pixel coordinates to meters (invert Y since canvas Y is top-down)
             start_x = float(robot_position['x']) / px_to_m
-            start_y = float(robot_position['y']) / px_to_m
+            start_y = (600 - float(robot_position['y'])) / px_to_m  # Invert Y axis
             
             # For multiple survivors, use first as goal (ir-sim supports single goal per robot)
             # To visit all survivors, we'd need path planning or behavior modification
             goal_x = float(survivor_positions[0]['x']) / px_to_m if survivor_positions else start_x
-            goal_y = float(survivor_positions[0]['y']) / px_to_m if survivor_positions else start_y
+            goal_y = (600 - float(survivor_positions[0]['y'])) / px_to_m if survivor_positions else start_y  # Invert Y axis
             
             robot = {
                 'kinematics': {'name': 'diff'},  # differential drive
@@ -95,7 +95,7 @@ class ConfigManager:
         for i, pos in enumerate(survivor_positions):
             obstacle = {
                 'shape': {'name': 'circle', 'radius': 0.1},  # 10 pixels = 0.1 meters
-                'state': [float(pos['x']) / px_to_m, float(pos['y']) / px_to_m, 0]
+                'state': [float(pos['x']) / px_to_m, (600 - float(pos['y'])) / px_to_m, 0]  # Invert Y axis
             }
             obstacles.append(obstacle)
         
