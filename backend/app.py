@@ -66,11 +66,8 @@ def start_simulation():
                     yield f"data: {json.dumps({'error': frame_data.get('message', 'Unknown error')})}\n\n"
                     break
                 else:
-                    # Convert matplotlib figure to base64
-                    buffer = BytesIO()
-                    frame_data['frame'].savefig(buffer, format='png', dpi=80, bbox_inches='tight')
-                    buffer.seek(0)
-                    image_base64 = base64.b64encode(buffer.read()).decode()
+                    # frame_data['frame'] is already image bytes
+                    image_base64 = base64.b64encode(frame_data['frame']).decode()
                     
                     yield f"data: {json.dumps({'frame': image_base64})}\n\n"
                     time.sleep(0.05)  # Control frame rate (~20 FPS)
