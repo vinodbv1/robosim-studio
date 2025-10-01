@@ -19,6 +19,15 @@ class SimulationRunner:
         self.paused = False
         self.stopped = False
         self.env = None
+        self.frame_dir = os.path.join(os.path.dirname(config_path), 'frames')
+        
+        # Create frames directory
+        os.makedirs(self.frame_dir, exist_ok=True)
+        
+        # Clean up old frames
+        for file in os.listdir(self.frame_dir):
+            if file.endswith('.png'):
+                os.remove(os.path.join(self.frame_dir, file))
         
         # Load map image for background overlay
         if os.path.exists(map_path):
@@ -55,15 +64,22 @@ class SimulationRunner:
                 continue
             
             try:
-                # Step the ir-sim environment
+                # Step the ir-sim environment (this saves frame automatically)
                 self.env.step()
                 
-                # Render current state with map overlay (returns image bytes)
-                frame_bytes = self._render_with_map(step)
+                # Read the saved frame from ir-sim
+                frame_path = os.path.join(self.frame_dir, f'frame_{step:04d}.png')
                 
-                yield {'frame': frame_bytes, 'status': 'running'}
+                # Wait a bit for file to be written
+                time.sleep(0.02)
                 
-                plt.close('all')  # Close all figures to prevent memory leaks
+                # Read the frame if it exists
+                if os.path.exists(frame_path):
+                    with open(frame_path, 'rb') as f:
+                        frame_bytes = f.read()
+                    yield {'frame': frame_bytes, 'status': 'running'}
+                else:
+                    print(f"Warning: Frame not found at {frame_path}")
                 
                 # Check if simulation is done
                 if self.env.done():
@@ -85,44 +101,6 @@ class SimulationRunner:
             print("Simulation completed: Max steps reached")
             yield {'status': 'completed'}
     
-    def _render_with_map(self, step):
-        """Render ir-sim state with map overlay and return as image bytes"""
-        # Call ir-sim's render function (renders to current figure)
-        self.env.render(0.05)
-        
-        # Get the current figure that env.render() created
-        fig = plt.gcf()
-        ax = plt.gca()
-        
-        # If we have a map image, add it as background
-        if self.map_image:
-            # Add map as background layer (lowest zorder)
-            ax.imshow(self.map_image, extent=[0, 8, 0, 6], alpha=0.3, zorder=0)
-        
-        # Customize the title and styling
-        ax.set_title(
-            f'Robot Simulation - Step {step}',
-            color='#00d9ff',
-            fontsize=14,
-            fontweight='bold',
-            fontfamily='monospace'
-        )
-        ax.set_xlabel('X (meters)', color='white')
-        ax.set_ylabel('Y (meters)', color='white')
-        ax.tick_params(colors='white')
-        ax.spines['bottom'].set_color('white')
-        ax.spines['top'].set_color('white')
-        ax.spines['left'].set_color('white')
-        ax.spines['right'].set_color('white')
-        fig.patch.set_facecolor('#1a1a2e')
-        ax.set_facecolor('#0f0f1e')
-        
-        # Convert figure to bytes
-        buf = BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight', facecolor=fig.get_facecolor())
-        buf.seek(0)
-        
-        return buf.getvalue()
     
     def set_paused(self, paused):
         """Pause or resume simulation"""
@@ -139,3 +117,12 @@ class SimulationRunner:
         if self.env:
             self.env.end()
         plt.close('all')
+        
+        # Clean up frame files
+        if os.path.exists(self.frame_dir):
+            for file in os.listdir(self.frame_dir):
+                if file.endswith('.png'):
+                    try:
+                        os.remove(os.path.join(self.frame_dir, file))
+                    except:
+                        pass

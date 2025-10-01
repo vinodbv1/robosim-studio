@@ -56,14 +56,15 @@ class ConfigManager:
         # Convert pixel coordinates to meters (assuming 800x600 pixel map = 8x6 meters)
         px_to_m = 100  # 100 pixels = 1 meter
         
-        # Update world settings
+        # Update world settings with save_ani to save frames
         config['world'] = {
             'height': 6,  # 600 pixels = 6 meters
             'width': 8,   # 800 pixels = 8 meters
             'step_time': 0.1,
             'sample_time': 0.1,
             'offset': [0, 0],
-            'collision_mode': 'stop'
+            'collision_mode': 'stop',
+            'save_ani': True  # Enable animation frame saving
         }
         
         # Create robot configurations in ir-sim format
